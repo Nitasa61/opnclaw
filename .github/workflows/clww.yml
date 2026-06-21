@@ -16,126 +16,123 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Install Dependencies
-    run: |
-      sudo apt update
-      sudo apt install -y curl wget unzip jq tar git
+        run: |
+          sudo apt update
+          sudo apt install -y curl wget unzip jq tar git
 
       - name: Install Node.js
-    run: |
-      curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
-      sudo apt install -y nodejs
+        run: |
+          curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
+          sudo apt install -y nodejs
 
       - name: Install GitHub CLI
-    run: |
-      type -p curl >/dev/null || sudo apt install curl -y
-      curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg |
-        sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg
+        run: |
+          type -p curl >/dev/null || sudo apt install curl -y
 
-      sudo chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg
+          curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | \
+          sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg
 
-      echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" |
-        sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null
+          sudo chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg
 
-      sudo apt update
-      sudo apt install gh -y
+          echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | \
+          sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null
+
+          sudo apt update
+          sudo apt install gh -y
 
       - name: Restore Session From Release
-    env:
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-    run: |
-      mkdir -p ~/.openclaw
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mkdir -p ~/.openclaw
 
-      if gh release view session-backup >/dev/null 2>&1; then
+          if gh release view session-backup >/dev/null 2>&1; then
+            mkdir -p restore
+            cd restore
 
-        mkdir restore
+            gh release download session-backup
 
-        cd restore
+            if [ -f session.tar.gz ]; then
+              tar -xzf session.tar.gz -C ~/
+              echo "Session restored"
+            fi
 
-        gh release download session-backup
-
-        if [ -f session.tar.gz ]; then
-          tar -xzf session.tar.gz -C ~/
-          echo "Session restored"
-        fi
-
-        cd ..
-      else
-        echo "No backup release found"
-      fi
+            cd ..
+          else
+            echo "No backup release found"
+          fi
 
       - name: Install OpenClaw
-    run: |
-      npm install -g openclaw
+        run: |
+          npm install -g openclaw
 
       - name: Install PM2
-    run: |
-      npm install -g pm2
+        run: |
+          npm install -g pm2
 
       - name: Start OpenClaw
-    run: |
-      pm2 start openclaw --name openclaw || true
-      pm2 save
+        run: |
+          pm2 start openclaw --name openclaw || true
+          pm2 save
 
       - name: Install Tailscale
-    run: |
-      curl -fsSL https://tailscale.com/install.sh | sh
+        run: |
+          curl -fsSL https://tailscale.com/install.sh | sh
 
       - name: Connect Tailscale
-    run: |
-      sudo tailscale up \
-        --authkey=${{ secrets.TAILSCALE_AUTH_KEY }}
+        run: |
+          sudo tailscale up --authkey=${{ secrets.TAILSCALE_AUTH_KEY }}
 
       - name: Get Tailscale IP
-    run: |
-      echo "TAILSCALE_IP=$(tailscale ip -4)" >> $GITHUB_ENV
+        run: |
+          echo "TAILSCALE_IP=$(tailscale ip -4)" >> $GITHUB_ENV
 
       - name: Send Telegram Status
-    env:
-      BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-      CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-    run: |
-      MESSAGE="🚀 OpenClaw Started
+        env:
+          BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          MESSAGE="ЁЯЪА OpenClaw Started
 
-      IP: $TAILSCALE_IP
-      User: runner
-      Duration: 340 minutes"
+          IP: $TAILSCALE_IP
+          User: runner
+          Duration: 340 minutes"
 
-      curl -X POST \
-      "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" \
-      -d chat_id="${CHAT_ID}" \
-      -d text="${MESSAGE}"
+          curl -X POST \
+            "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" \
+            -d chat_id="${CHAT_ID}" \
+            -d text="${MESSAGE}"
 
       - name: Keep Runner Alive
-    run: |
-      sleep 19800
+        run: |
+          sleep 19800
 
       - name: Backup Session
-    if: always()
-    run: |
-      tar -czf session.tar.gz ~/.openclaw
+        if: always()
+        run: |
+          tar -czf session.tar.gz ~/.openclaw
 
       - name: Upload Session To Release
-    if: always()
-    env:
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-    run: |
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release view session-backup >/dev/null 2>&1 || \
+          gh release create session-backup \
+            --title "Session Backup" \
+            --notes "OpenClaw Session Storage"
 
-      gh release view session-backup >/dev/null 2>&1 || \
-      gh release create session-backup \
-        --title "Session Backup" \
-        --notes "OpenClaw Session Storage"
-
-      gh release upload session-backup \
-        session.tar.gz \
-        --clobber
+          gh release upload session-backup \
+            session.tar.gz \
+            --clobber
 
       - name: Notify Finish
-    if: always()
-    env:
-      BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-      CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-    run: |
-      curl -X POST \
-      "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" \
-      -d chat_id="${CHAT_ID}" \
-      -d text="⚠️ Workflow selesai. Session telah dibackup ke GitHub Release."
+        if: always()
+        env:
+          BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          curl -X POST \
+            "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" \
+            -d chat_id="${CHAT_ID}" \
+            -d text="тЪая╕П Workflow selesai. Session telah dibackup ke GitHub Release."
