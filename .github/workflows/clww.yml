@@ -1,4 +1,4 @@
-name: OpenClaw Ubuntu
+name: OpenClaw Ubuntu SSH
 
 on:
   workflow_dispatch:
@@ -18,12 +18,22 @@ jobs:
       - name: Install Dependencies
         run: |
           sudo apt update
-          sudo apt install -y curl wget unzip jq tar git
+          sudo apt install -y curl wget unzip jq tar git openssh-server
 
       - name: Install Node.js
         run: |
           curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
           sudo apt install -y nodejs
+
+      - name: Install SSH Server
+        run: |
+          echo 'runner:Egianda@1' | sudo chpasswd
+
+          sudo sed -i 's/^#PasswordAuthentication yes/PasswordAuthentication yes/' /etc/ssh/sshd_config
+          sudo sed -i 's/^PasswordAuthentication no/PasswordAuthentication yes/' /etc/ssh/sshd_config
+
+          sudo systemctl enable ssh
+          sudo systemctl restart ssh
 
       - name: Install GitHub CLI
         run: |
@@ -65,9 +75,6 @@ jobs:
       - name: Install OpenClaw
         run: |
           npm install -g openclaw
-
-      - name: Install PM2
-        run: |
           npm install -g pm2
 
       - name: Start OpenClaw
@@ -92,47 +99,15 @@ jobs:
           BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
-          MESSAGE="ЁЯЪА OpenClaw Started
+          MESSAGE="🚀 OpenClaw Started
 
-          IP: $TAILSCALE_IP
-          User: runner
-          Duration: 340 minutes"
+          SSH HOST : $TAILSCALE_IP
+          USER     : runner
+          PASSWORD : Egianda@1
+          PORT     : 22"
 
-          curl -X POST \
-            "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" \
-            -d chat_id="${CHAT_ID}" \
-            -d text="${MESSAGE}"
+          curl -X POST             "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage"             -d chat_id="${CHAT_ID}"             -d text="${MESSAGE}"
 
       - name: Keep Runner Alive
         run: |
           sleep 19800
-
-      - name: Backup Session
-        if: always()
-        run: |
-          tar -czf session.tar.gz ~/.openclaw
-
-      - name: Upload Session To Release
-        if: always()
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          gh release view session-backup >/dev/null 2>&1 || \
-          gh release create session-backup \
-            --title "Session Backup" \
-            --notes "OpenClaw Session Storage"
-
-          gh release upload session-backup \
-            session.tar.gz \
-            --clobber
-
-      - name: Notify Finish
-        if: always()
-        env:
-          BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-        run: |
-          curl -X POST \
-            "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" \
-            -d chat_id="${CHAT_ID}" \
-            -d text="тЪая╕П Workflow selesai. Session telah dibackup ke GitHub Release."
