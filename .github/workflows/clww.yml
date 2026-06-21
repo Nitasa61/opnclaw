@@ -1,30 +1,31 @@
 name: OpenClaw Ubuntu
 
 on:
-workflow_dispatch:
+  workflow_dispatch:
 
 permissions:
-contents: write
+  contents: write
 
 jobs:
-openclaw:
-runs-on: ubuntu-24.04
-timeout-minutes: 340
-steps:
-  - name: Checkout
-    uses: actions/checkout@v4
+  openclaw:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 340
 
-  - name: Install Dependencies
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Dependencies
     run: |
       sudo apt update
       sudo apt install -y curl wget unzip jq tar git
 
-  - name: Install Node.js
+      - name: Install Node.js
     run: |
       curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
       sudo apt install -y nodejs
 
-  - name: Install GitHub CLI
+      - name: Install GitHub CLI
     run: |
       type -p curl >/dev/null || sudo apt install curl -y
       curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg |
@@ -38,7 +39,7 @@ steps:
       sudo apt update
       sudo apt install gh -y
 
-  - name: Restore Session From Release
+      - name: Restore Session From Release
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     run: |
@@ -62,33 +63,33 @@ steps:
         echo "No backup release found"
       fi
 
-  - name: Install OpenClaw
+      - name: Install OpenClaw
     run: |
       npm install -g openclaw
 
-  - name: Install PM2
+      - name: Install PM2
     run: |
       npm install -g pm2
 
-  - name: Start OpenClaw
+      - name: Start OpenClaw
     run: |
       pm2 start openclaw --name openclaw || true
       pm2 save
 
-  - name: Install Tailscale
+      - name: Install Tailscale
     run: |
       curl -fsSL https://tailscale.com/install.sh | sh
 
-  - name: Connect Tailscale
+      - name: Connect Tailscale
     run: |
       sudo tailscale up \
         --authkey=${{ secrets.TAILSCALE_AUTH_KEY }}
 
-  - name: Get Tailscale IP
+      - name: Get Tailscale IP
     run: |
       echo "TAILSCALE_IP=$(tailscale ip -4)" >> $GITHUB_ENV
 
-  - name: Send Telegram Status
+      - name: Send Telegram Status
     env:
       BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
       CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
@@ -104,16 +105,16 @@ steps:
       -d chat_id="${CHAT_ID}" \
       -d text="${MESSAGE}"
 
-  - name: Keep Runner Alive
+      - name: Keep Runner Alive
     run: |
       sleep 19800
 
-  - name: Backup Session
+      - name: Backup Session
     if: always()
     run: |
       tar -czf session.tar.gz ~/.openclaw
 
-  - name: Upload Session To Release
+      - name: Upload Session To Release
     if: always()
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -128,7 +129,7 @@ steps:
         session.tar.gz \
         --clobber
 
-  - name: Notify Finish
+      - name: Notify Finish
     if: always()
     env:
       BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
