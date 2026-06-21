@@ -10,8 +10,6 @@ jobs:
 openclaw:
 runs-on: ubuntu-24.04
 timeout-minutes: 340
-
-```
 steps:
   - name: Checkout
     uses: actions/checkout@v4
