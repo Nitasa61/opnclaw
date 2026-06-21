@@ -138,4 +138,3 @@ steps:
       "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" \
       -d chat_id="${CHAT_ID}" \
       -d text="⚠️ Workflow selesai. Session telah dibackup ke GitHub Release."
-```
